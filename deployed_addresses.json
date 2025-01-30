@@ -1,0 +1,6 @@
+{
+    "baseSepolia": {
+        "USDC20": "0x81b33EdFdA34D59Af7b8806712a6eB2EFeE508f4",
+        "Vault": "0x0D182Ea8ECd591d7630Ae9E6593054eF2e303402"
+    }
+}

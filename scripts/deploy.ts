@@ -6,7 +6,7 @@ const artifacts = {
     USDC20VAULTARTIFACT: require("../artifacts/contracts/USDC20Vault.sol/USDC20Vault.json")
 }
 
-async function main() {
+/* async function main() {
     const [deployer, player1, player2] = await ethers.getSigners()
 
     // Deploy USDC20 first
@@ -88,7 +88,33 @@ async function main() {
     console.log("Loser (Player 1) final balance:", (formatEther(await usdc20.balanceOf(player1.address))).toString())
     console.log("Winner (Player 2) final balance:", (formatEther(await usdc20.balanceOf(player2.address))).toString())
     console.log("Owner final balance:", (formatEther(await usdc20.balanceOf(deployer.address))).toString())
-}
+} */
+    const main = async () => {
+        // Deploy USDC20
+        const USDC20 = await ethers.getContractFactory("USDC20");
+        const usdc20 = await USDC20.deploy();
+        await usdc20.waitForDeployment();
+        console.log("USDC20 deployed to:", await usdc20.getAddress());
+    
+        // Deploy Vault
+        const Vault = await ethers.getContractFactory("USDC20Vault");
+        const vault = await Vault.deploy(await usdc20.getAddress());
+        await vault.waitForDeployment();
+        console.log("Vault deployed to:", await vault.getAddress());
+    
+        // Mint initial tokens
+        const [deployer] = await ethers.getSigners();
+        await usdc20.mint(deployer.address, ethers.parseEther("20000")); // 20000 tokens (10000 for you, 10000 for vault)
+    
+        // Fund vault
+        await usdc20.approve(await vault.getAddress(), ethers.parseEther("10000"));
+        await vault.addToPrizePool(ethers.parseEther("10000"));
+    
+        console.log("Setup complete!");
+        console.log("USDC20 Balance:", ethers.formatEther(await usdc20.balanceOf(deployer.address)));
+        console.log("Vault Prize Pool:", ethers.formatEther(await vault.getPrizePool()));
+    }
+
 // npx hardhat run scripts/deploy.ts
 main().catch((error) => {
     console.error(error);
