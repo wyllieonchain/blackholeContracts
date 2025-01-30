@@ -28,6 +28,7 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     }
 
     function placeBid() external nonReentrant {
+        require(!canClaim(), "Game is ready for claiming, no more bids allowed");
         uint256 baseAmount = currentBaseAmount == 0 ? BASE_INCREMENT : currentBaseAmount + BASE_INCREMENT;
         uint256 vaultFee = (baseAmount * VAULT_FEE_BPS) / 10000;
         uint256 deployerFee = (baseAmount * DEPLOYER_FEE_BPS) / 10000;
