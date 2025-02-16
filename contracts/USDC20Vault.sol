@@ -7,7 +7,7 @@ import "@openzeppelin/contracts/utils/ReentrancyGuard.sol";
 
 contract USDC20Vault is Ownable, ReentrancyGuard {
     IERC20 public usdc20;
-    uint256 public constant BASE_INCREMENT = 100 * 1e18; // 100 USDC20 tokens
+    uint256 public constant BASE_INCREMENT = 100 * 1e6; // 100 USDC20 tokens
     uint256 public constant VAULT_FEE_BPS = 100; // 1% = 100 basis points
     uint256 public constant DEPLOYER_FEE_BPS = 50; // 0.5% = 50 basis points
     uint256 public constant TOTAL_FEE_BPS = VAULT_FEE_BPS + DEPLOYER_FEE_BPS; // 1.5%
@@ -18,16 +18,24 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     uint256 public prizePool;
     uint256 public lastBidTime;
     uint256 public constant HOUR_IN_SECONDS = 60; // Changed from 3600 to 60 for testing
-    bool public claimed = false;
+    bool public claimed;
+    bool public init;
 
     event BidPlaced(address indexed bidder, uint256 amount, uint256 vaultFee, uint256 deployerFee);
     event BidderRefunded(address indexed bidder, uint256 amount);
 
     constructor(address _usdc20Address) Ownable(msg.sender) {
         usdc20 = IERC20(_usdc20Address);
+        claimed = false;
+        init =false;
+    }
+    
+    function startGame() public onlyOwner{
+        init = true;
     }
 
     function placeBid() external nonReentrant {
+        require(init,"Game has not been started");
         require(!canClaim(), "Game is ready for claiming, no more bids allowed");
         uint256 baseAmount = currentBaseAmount == 0 ? BASE_INCREMENT : currentBaseAmount + BASE_INCREMENT;
         uint256 vaultFee = (baseAmount * VAULT_FEE_BPS) / 10000;
@@ -71,6 +79,7 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     }
 
     function canClaim() public view returns (bool) {
+        require(init, "Game has not bee started");
         return !claimed && 
                block.timestamp >= lastBidTime + HOUR_IN_SECONDS && 
                highestBidder != address(0);
@@ -86,6 +95,7 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
         require(msg.sender == highestBidder, "Only highest bidder can claim");
         
         claimed = true;
+        prizePool = 0;
         require(usdc20.transfer(highestBidder, prizePool), "Prize transfer failed");
         require(usdc20.transfer(owner(), currentBaseAmount), "Final bid transfer failed");
     }
