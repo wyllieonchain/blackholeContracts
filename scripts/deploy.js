@@ -1,4 +1,3 @@
-const { ethers } = require("hardhat");
 const { utils, ContractFactory, formatEther } = require("ethers");
 
 const artifacts = {
@@ -89,18 +88,33 @@ const artifacts = {
     console.log("Winner (Player 2) final balance:", (formatEther(await usdc20.balanceOf(player2.address))).toString())
     console.log("Owner final balance:", (formatEther(await usdc20.balanceOf(deployer.address))).toString())
 } */
-const main = async () => {
-    // Use existing USDC20 address
-    const USDC20_ADDRESS = "0x81b33EdFdA34D59Af7b8806712a6eB2EFeE508f4";
+async function main() {
+
+    const [deployer] = await ethers.getSigners();
+
+    const USDC20 = new ContractFactory(artifacts.USDC20ARTIFACT.abi, artifacts.USDC20ARTIFACT.bytecode, deployer);
+    const usdc20 = await USDC20.deploy();
+    await usdc20.waitForDeployment();
+    console.log(`NEXT_PUBLIC_USDC_ADDRESS=${await usdc20.getAddress()}`);
     
     // Deploy only the Vault
     const Vault = await ethers.getContractFactory("USDC20Vault");
-    const vault = await Vault.deploy(USDC20_ADDRESS);
+    const vault = await Vault.deploy(usdc20.getAddress());
     await vault.waitForDeployment();
-    console.log("New Vault deployed to:", await vault.getAddress());
+    console.log(`NEXT_PUBLIC_VAULT_ADDRESS=${await vault.getAddress()}`);
+
+    // Mint usdc to wallet
+    await usdc20.connect(deployer).mint(process.env.PUBLIC_KEY, ethers.parseUnits("20000", 6));
+
+    // Fund vault
+    console.log("Approving USDC20...");
+    await usdc20.approve(await vault.getAddress(), ethers.parseUnits("10000", 6));
+    
+    console.log("Adding to prize pool...");
+    await vault.addToPrizePool(ethers.parseUnits("10000", 6));
 }
 
-// npx hardhat run scripts/deploy.ts
+// npx hardhat run scripts/deploy.js --network baseSepolia
 main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
