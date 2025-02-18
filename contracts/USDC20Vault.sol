@@ -9,8 +9,8 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     IERC20 public usdc20;
     uint256 public constant BASE_INCREMENT = 100 * 1e6; // 100 USDC20 tokens
     uint256 public constant VAULT_FEE_BPS = 100; // 1% = 100 basis points
-    uint256 public constant DEPLOYER_FEE_BPS = 50; // 0.5% = 50 basis points
-    uint256 public constant TOTAL_FEE_BPS = VAULT_FEE_BPS + DEPLOYER_FEE_BPS; // 1.5%
+    uint256 public constant DEPLOYER_FEE_BPS = 100; // 1% = 50 basis points
+    uint256 public constant TOTAL_FEE_BPS = VAULT_FEE_BPS + DEPLOYER_FEE_BPS; // 2%
     
     address public highestBidder;
     uint256 public currentBaseAmount;
@@ -79,7 +79,7 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     }
 
     function canClaim() public view returns (bool) {
-        require(init, "Game has not bee started");
+        require(init, "Game has not been started");
         return !claimed && 
                block.timestamp >= lastBidTime + HOUR_IN_SECONDS && 
                highestBidder != address(0);

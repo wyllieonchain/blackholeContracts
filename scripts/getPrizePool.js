@@ -10,7 +10,7 @@ async function main(){
     console.log(`PrizePool: ${prizePool}`);
 }
 
-// npx hardhat run scripts/checkVault.js --network baseSepolia
+// npx hardhat run scripts/getPrizePool.js --network baseSepolia
 main().catch((error) => {
     console.error(error);
     process.exitCode = 1;
