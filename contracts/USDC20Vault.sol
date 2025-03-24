@@ -13,19 +13,22 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     uint256 public constant TOTAL_FEE_BPS = VAULT_FEE_BPS + DEPLOYER_FEE_BPS; // 2%
     
     address public highestBidder;
+    address public feeDestination;
     uint256 public currentBaseAmount;
     uint256 public highestBid;
     uint256 public prizePool;
     uint256 public lastBidTime;
-    uint256 public constant HOUR_IN_SECONDS = 60; // Changed from 3600 to 60 for testing
+    uint256 public constant HOUR_IN_SECONDS = 3600; // Changed from 3600 to 60 for testing
     bool public claimed;
     bool public init;
 
-    event BidPlaced(address indexed bidder, uint256 amount, uint256 vaultFee, uint256 deployerFee);
+    event BidPlaced(address indexed bidder, uint256 amount, uint256 lastBidTime, uint256 prizePool, uint256 vaultFee, uint256 deployerFee);
     event BidderRefunded(address indexed bidder, uint256 amount);
+    event Claimed(address indexed bidder, uint256 lastBid, uint256 prizePool);
 
-    constructor(address _usdc20Address) Ownable(msg.sender) {
+    constructor(address _usdc20Address, address _feeDestination) Ownable(msg.sender) {
         usdc20 = IERC20(_usdc20Address);
+        feeDestination = _feeDestination;
         claimed = false;
         init =false;
     }
@@ -34,21 +37,22 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
         init = true;
     }
 
-    function placeBid() external nonReentrant {
+    function changeFeeDestination(address _feeDestination) public onlyOwner(){
+        feeDestination = _feeDestination;
+    }
+
+    function placeBid(uint256 expectedBid) external nonReentrant {
         require(init,"Game has not been started");
         require(!canClaim(), "Game is ready for claiming, no more bids allowed");
         uint256 baseAmount = currentBaseAmount == 0 ? BASE_INCREMENT : currentBaseAmount + BASE_INCREMENT;
         uint256 vaultFee = (baseAmount * VAULT_FEE_BPS) / 10000;
         uint256 deployerFee = (baseAmount * DEPLOYER_FEE_BPS) / 10000;
         uint256 totalAmount = baseAmount + vaultFee + deployerFee;
-        
+        require(expectedBid >= totalAmount, "Slippage");
         require(usdc20.allowance(msg.sender, address(this)) >= totalAmount, "Insufficient allowance");
         
         address previousBidder = highestBidder;
         uint256 previousBaseAmount = currentBaseAmount;  // Store base amount for refund
-
-        // First receive new funds
-        require(usdc20.transferFrom(msg.sender, address(this), totalAmount), "Transfer failed");
 
         // Update state
         highestBidder = msg.sender;
@@ -57,15 +61,18 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
         prizePool += vaultFee;
         lastBidTime = block.timestamp;
 
+        // First receive new funds
+        require(usdc20.transferFrom(msg.sender, address(this), totalAmount), "Transfer failed");
+
         // Then handle outgoing transfers
-        require(usdc20.transfer(owner(), deployerFee), "Deployer fee transfer failed");
+        require(usdc20.transfer(feeDestination, deployerFee), "Deployer fee transfer failed");
         
         if (previousBidder != address(0)) {
             require(usdc20.transfer(previousBidder, previousBaseAmount), "Refund failed");
             emit BidderRefunded(previousBidder, previousBaseAmount);
         }
 
-        emit BidPlaced(msg.sender, totalAmount, vaultFee, deployerFee);
+        emit BidPlaced(msg.sender, totalAmount, lastBidTime, prizePool, vaultFee, deployerFee);
     }
 
     function getNextBidAmount() external view returns (uint256) {
@@ -90,13 +97,19 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
         prizePool += amount;
     }
 
-    function claim() public {
+    function claim() external nonReentrant {
         require(canClaim(), "Cannot claim yet or already claimed");
         require(msg.sender == highestBidder, "Only highest bidder can claim");
-        
-        claimed = true;
+
+        uint256 tempPool = prizePool;
         prizePool = 0;
-        require(usdc20.transfer(highestBidder, prizePool), "Prize transfer failed");
-        require(usdc20.transfer(owner(), currentBaseAmount), "Final bid transfer failed");
+        claimed = true;
+
+        require(usdc20.transfer(feeDestination, currentBaseAmount), "Final bid transfer failed");
+        require(usdc20.transfer(highestBidder, tempPool), "Prize transfer failed");
+        
+
+        emit Claimed(msg.sender, highestBid, tempPool);
+        
     }
 } 
