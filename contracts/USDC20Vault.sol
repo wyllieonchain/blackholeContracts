@@ -18,7 +18,8 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     uint256 public highestBid;
     uint256 public prizePool;
     uint256 public lastBidTime;
-    uint256 public constant HOUR_IN_SECONDS = 3600; // Changed from 3600 to 60 for testing
+    uint256 public constant HOUR_IN_SECONDS = 3600;
+    uint256 public constant CLAIM_WINDOW_IN_SECONDS = 604800;
     bool public claimed;
     bool public init;
 
@@ -44,6 +45,7 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
     function placeBid(uint256 expectedBid) external nonReentrant {
         require(init,"Game has not been started");
         require(!canClaim(), "Game is ready for claiming, no more bids allowed");
+        require(claimed == false, "Game has already been claimed");
         uint256 baseAmount = currentBaseAmount == 0 ? BASE_INCREMENT : currentBaseAmount + BASE_INCREMENT;
         uint256 vaultFee = (baseAmount * VAULT_FEE_BPS) / 10000;
         uint256 deployerFee = (baseAmount * DEPLOYER_FEE_BPS) / 10000;
@@ -111,5 +113,21 @@ contract USDC20Vault is Ownable, ReentrancyGuard {
 
         emit Claimed(msg.sender, highestBid, tempPool);
         
+    }
+
+    function claimWindowEnded() external nonReentrant onlyOwner{
+        require(canClaim(),"Cannot claim yet or already claimed" );
+        require(block.timestamp>=lastBidTime + HOUR_IN_SECONDS + CLAIM_WINDOW_IN_SECONDS, "Player claim window has not ended");
+
+        uint256 tempPool = prizePool;
+        prizePool = 0;
+        claimed = true;
+
+        require(usdc20.transfer(feeDestination, currentBaseAmount), "Final bid transfer failed");
+        require(usdc20.transfer(feeDestination, tempPool), "Prize transfer failed");
+        
+
+        emit Claimed(feeDestination, highestBid, tempPool);
+
     }
 } 

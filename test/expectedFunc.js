@@ -71,7 +71,7 @@ describe("USDC20Vault", function () {
     await usdc20.connect(player1).approve(await vault.getAddress(), bid1);
     await vault.connect(player1).placeBid(bid1);
     const player1PostBid = await usdc20.balanceOf(player1.getAddress());
-    
+
     const vaultPrize = await vault.getPrizePool();
 
     // Fast-forward time
@@ -114,4 +114,34 @@ describe("USDC20Vault", function () {
 
     await expect(vault.connect(player2).claim()).to.be.revertedWith("Only highest bidder can claim");
   });
+
+  it("Should not allow bid after claim", async () => {
+    const player1Before = await usdc20.balanceOf(player1.getAddress())
+      ;
+    const bid1 = await vault.getNextBidAmount();
+    await usdc20.connect(player1).approve(await vault.getAddress(),
+      bid1);
+    await vault.connect(player1).placeBid(bid1);
+
+    // Fast-forward time
+    await ethers.provider.send("evm_increaseTime", [3601]);
+    await ethers.provider.send("evm_mine");
+
+    // Claim prize
+    await vault.connect(player1).claim();
+    const player1After = await usdc20.balanceOf(player1.getAddress());
+
+    expect(player1After).to.be.gt(player1Before);
+    expect(player1After).to.be.equal(19899000000);
+    expect(await vault.getPrizePool()).to.equal(0n);
+
+
+    // Bid should revert now
+    const bid2 = await vault.getNextBidAmount();
+    await usdc20.connect(player2).approve(await vault.getAddress(),
+      bid2);
+    await expect(vault.connect(player2).placeBid(bid2)).to.be.reverted
+      ;
+  });
+
 });
